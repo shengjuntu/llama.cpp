@@ -591,6 +591,10 @@ struct common_params {
 
     // multimodal models (see tools/mtmd)
     struct common_params_model mmproj;
+    std::string aligner_model;
+    std::string aligner_mmproj;
+    int32_t aligner_n_ctx = 8192;
+    int32_t aligner_n_gpu_layers = -1;
     bool mmproj_use_gpu = true;                 // use GPU for multimodal model
     ggml_backend_dev_t mmproj_device = nullptr; // GPU device to use for multimodal model
     bool no_mmproj = false;                     // explicitly disable multimodal model

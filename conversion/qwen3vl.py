@@ -218,11 +218,23 @@ class Qwen3OmniMmprojModel(Qwen3VLVisionModel, Qwen25AudioModel):
             yield from Qwen25AudioModel.modify_tensors(self, data_torch, name, bid)
 
 
-@ModelBase.register("Qwen3ASRForConditionalGeneration")
+@ModelBase.register("Qwen3ASRForConditionalGeneration", "Qwen3ASRForTokenClassification")
 @ModelBase.example("Qwen/Qwen3-ASR-0.6B-hf")
 class Qwen3ASRMmprojModel(Qwen3OmniMmprojModel):
     has_audio_encoder = True
     has_vision_encoder = False
+
+    def get_audio_config(self) -> dict[str, Any] | None:
+        return self.global_config.get("thinker_config", self.global_config).get("audio_config")
+
+    @classmethod
+    def filter_tensors(cls, item: tuple[str, Callable[[], Tensor]]) -> tuple[str, Callable[[], Tensor]] | None:
+        name, gen = item
+        if name.startswith("model.audio_tower."):
+            name = name.replace("model.audio_tower.", "audio_tower.", 1)
+        elif name.startswith("model.multi_modal_projector.linear_"):
+            name = name.replace("model.multi_modal_projector.linear_", "audio_tower.proj", 1)
+        return super().filter_tensors((name, gen))
 
 
 @ModelBase.register("Glm4vForConditionalGeneration", "Glm4vMoeForConditionalGeneration", "GlmOcrForConditionalGeneration")
@@ -352,6 +364,7 @@ class Qwen3ASRTextModel(Qwen3VLTextModel):
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
         self.gguf_writer.add_num_deepstack_layers(0)
+        self.gguf_writer.add_bool("qwen3vl.asr", True)
 
     def set_vocab(self):
         super().set_vocab()
@@ -366,3 +379,33 @@ class Qwen3ASRTextModel(Qwen3VLTextModel):
                     self.gguf_writer.add_bos_token_id(int(token_id))
                     self.gguf_writer.add_eos_token_id(int(token_id))
                     break
+
+
+@ModelBase.register("Qwen3ASRForTokenClassification")
+@ModelBase.example("Qwen/Qwen3-ForcedAligner-0.6B", "Qwen/Qwen3-ForcedAligner-0.6B-hf")
+class Qwen3ForcedAlignerTextModel(Qwen3Model):
+    model_arch = gguf.MODEL_ARCH.QWEN3ALIGNER
+
+    def set_gguf_parameters(self):
+        super().set_gguf_parameters()
+        config = self.hparams.get("thinker_config", self.hparams)
+        n_classes = config.get("classify_num", self.hparams.get("num_labels", len(self.hparams.get("id2label", {}))))
+        if n_classes < 2:
+            raise ValueError("Missing timestamp class count in the aligner config")
+        self.gguf_writer.add_embedding_length_out(n_classes)
+        self.gguf_writer.add_pooling_type(gguf.PoolingType.NONE)
+        self.gguf_writer.add_uint32("qwen3aligner.timestamp_token_id", self.hparams["timestamp_token_id"])
+        self.gguf_writer.add_float32("qwen3aligner.timestamp_segment_time", self.hparams["timestamp_segment_time"])
+
+    @classmethod
+    def filter_tensors(cls, item: tuple[str, Callable[[], Tensor]]) -> tuple[str, Callable[[], Tensor]] | None:
+        name, gen = item
+        name = name.removeprefix("thinker.")
+        if name in ("lm_head.weight", "score.weight"):
+            name = "cls.output.weight"
+        return super().filter_tensors((name, gen))
+
+    def tensor_force_quant(self, name, new_name, bid, n_dims):
+        if new_name == "cls.output.weight":
+            return gguf.GGMLQuantizationType.F32
+        return super().tensor_force_quant(name, new_name, bid, n_dims)

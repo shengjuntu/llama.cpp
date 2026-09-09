@@ -143,6 +143,11 @@ static gguf_context_ptr get_gguf_ctx(const llm_arch arch, const bool moe) {
     ms.add_kv(LLM_KV_VOCAB_SIZE,                n_vocab);
     ms.add_kv(LLM_KV_CONTEXT_LENGTH,            n_ctx);
     ms.add_kv(LLM_KV_EMBEDDING_LENGTH,          n_embd);
+    if (arch == LLM_ARCH_QWEN3ALIGNER) {
+        ms.add_kv(LLM_KV_EMBEDDING_LENGTH_OUT, uint32_t(17));
+        gguf_set_val_u32(ms.gguf_ctx, "qwen3aligner.timestamp_token_id", 42);
+        gguf_set_val_f32(ms.gguf_ctx, "qwen3aligner.timestamp_segment_time", 80.0f);
+    }
     ms.add_kv(LLM_KV_FEATURES_LENGTH,           n_embd);
     ms.add_kv(LLM_KV_BLOCK_COUNT,               n_layer);
     ms.add_kv(LLM_KV_LEADING_DENSE_BLOCK_COUNT, uint32_t(1));
@@ -413,6 +418,17 @@ static std::pair<llama_model_ptr, llama_context_ptr> get_model_and_ctx(
     if (!model) {
         throw std::runtime_error("failed to create llama model");
     }
+    char arch_name[64] = {};
+    llama_model_meta_val_str(model.get(), "general.architecture", arch_name, sizeof(arch_name));
+    if (std::strcmp(arch_name, "qwen3aligner") == 0) {
+        char value[64] = {};
+        llama_model_meta_val_str(model.get(), "qwen3aligner.timestamp_token_id", value, sizeof(value));
+        GGML_ASSERT(std::string(value) == "42");
+        llama_model_meta_val_str(model.get(), "qwen3aligner.timestamp_segment_time", value, sizeof(value));
+        GGML_ASSERT(std::stof(value) == 80.0f);
+        ctx_params.embeddings = true;
+        ctx_params.pooling_type = LLAMA_POOLING_TYPE_NONE;
+    }
     llama_context_ptr lctx(llama_init_from_model(model.get(), ctx_params));
     if (!lctx) {
         throw std::runtime_error("failed to create llama context");
@@ -422,7 +438,10 @@ static std::pair<llama_model_ptr, llama_context_ptr> get_model_and_ctx(
 
 static std::vector<float> get_logits(
         llama_model * model, llama_context * lctx, const std::vector<llama_token> & tokens, bool encode = false) {
-    const uint32_t n_vocab  = llama_vocab_n_tokens(llama_model_get_vocab(model));
+    char arch_name[64] = {};
+    llama_model_meta_val_str(model, "general.architecture", arch_name, sizeof(arch_name));
+    const bool classifier = std::strcmp(arch_name, "qwen3aligner") == 0;
+    const uint32_t n_vocab  = classifier ? llama_model_n_embd_out(model) : llama_vocab_n_tokens(llama_model_get_vocab(model));
     const uint32_t n_ctx    = llama_n_ctx(lctx);
     const uint32_t n_tokens = tokens.size();
     llama_batch batch = llama_batch_init(n_ctx, 0, 1);
@@ -445,7 +464,7 @@ static std::vector<float> get_logits(
     std::vector<float> ret;
     ret.reserve(n_tokens*n_vocab);
     for (uint32_t i = 0; i < n_tokens; i++) {
-        const float * logits_ith = llama_get_logits_ith(lctx, i);
+        const float * logits_ith = classifier ? llama_get_embeddings_ith(lctx, i) : llama_get_logits_ith(lctx, i);
         for (uint32_t j = 0; j < n_vocab; j++) {
             ret.push_back(logits_ith[j]);
         }

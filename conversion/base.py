@@ -2803,6 +2803,11 @@ def get_model_architecture(hparams: dict[str, Any], model_type: ModelType) -> st
         # For non-hf Mamba and Mamba2 models
         arch = hparams["ssm_cfg"].get("layer", "Mamba") + "ForCausalLM"
 
+    if arch == "Qwen3ASRForConditionalGeneration" and hparams.get("thinker_config", {}).get("model_type") == "qwen3_forced_aligner":
+        return "Qwen3ASRForTokenClassification"
+    if arch == "Qwen3ASRForTokenClassification":
+        return arch
+
     # Step3-VL keeps text config under text_config but uses a custom top-level architecture.
     # For text conversion we route to a dedicated text-only class.
     # TODO: refactor this later to avoid adding exception here

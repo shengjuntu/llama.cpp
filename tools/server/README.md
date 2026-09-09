@@ -12,6 +12,7 @@ Set of LLM REST APIs and a web UI to interact with llama.cpp.
  * Parallel decoding with multi-user support
  * Continuous batching
  * Multimodal ([documentation](../../docs/multimodal.md)) / with OpenAI-compatible API support
+ * [Qwen3-ASR with forced alignment](../../docs/qwen3-asr-details.md) through `/v1/audio/transcriptions/details`
  * Monitoring endpoints
  * Schema-constrained JSON response format
  * Prefilling of assistant messages similar to the Claude API

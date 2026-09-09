@@ -96,6 +96,11 @@ llama_context::llama_context(
 
     const auto & hparams = model.hparams;
 
+    if (model.arch == LLM_ARCH_QWEN3ALIGNER &&
+            (!params.embeddings || (params.pooling_type != LLAMA_POOLING_TYPE_UNSPECIFIED && params.pooling_type != LLAMA_POOLING_TYPE_NONE))) {
+        throw std::runtime_error("qwen3aligner requires embeddings with pooling type NONE; text generation is not supported");
+    }
+
     cparams.n_seq_max = std::max(1u, params.n_seq_max);
     if (cparams.n_seq_max > LLAMA_MAX_SEQ) {
         throw std::runtime_error("n_seq_max must be <= " + std::to_string(LLAMA_MAX_SEQ));
@@ -2051,7 +2056,7 @@ uint32_t llama_context::output_reserve(int32_t n_outputs) {
     const auto n_embd     = hparams.n_embd;
     const auto n_embd_out = hparams.n_embd_out();
 
-    bool has_logits     = true;
+    bool has_logits     = model.arch != LLM_ARCH_QWEN3ALIGNER;
     bool has_embd       = cparams.embeddings;
     bool has_embd_nextn = cparams.embeddings_nextn;
 

@@ -8,7 +8,7 @@ ggml_cgraph * clip_graph_qwen3a::build() {
 
     const int64_t n_frames   = inp->ne[0]; // total frames, padded to multiple of chunk_size
     const int64_t n_mel      = inp->ne[1]; // 128
-    const int64_t chunk_size = 100;        // n_window * 2 (n_window=50 from model config)
+    const int64_t chunk_size = std::min<int64_t>(100, n_frames);
     const int64_t n_chunks   = n_frames / chunk_size;
 
     GGML_ASSERT(n_frames % chunk_size == 0); // preprocessor should already pad the input
@@ -42,32 +42,37 @@ ggml_cgraph * clip_graph_qwen3a::build() {
         cb(inp, "after_conv_blocks", -1);
     }
 
-    // permute [OW=25, OH=16, OC=480, n_chunks] -> [OH=16, OC=480, OW=25, n_chunks]
+    // permute [OW=13, OH=16, OC=480, n_chunks] -> [OH=16, OC=480, OW=13, n_chunks]
     // reshape to [OH*OC=7680, OW*n_chunks]
     // feature index h+16*c = c*16+f (matches python code)
     inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 2, 0, 1, 3));
     inp = ggml_reshape_2d(ctx0, inp, inp->ne[0] * inp->ne[1], inp->ne[2] * inp->ne[3]);
 
-    // Project to d_model: [d_model, 25*n_chunks]
+    // Project to d_model: [d_model, 13*n_chunks]
     inp = ggml_mul_mat(ctx0, model.conv_out_w, inp);
     if (model.conv_out_b) {
         inp = ggml_add(ctx0, inp, model.conv_out_b);
     }
     cb(inp, "after_conv_out", -1);
 
-    const int64_t n_pos = inp->ne[1]; // 25 * n_chunks
+    const int64_t n_pos_padded = inp->ne[1];
 
     // Per-chunk positional embeddings: repeat pos[0:13] for each chunk
     // (position indices reset 0..12 per chunk, not sequential across chunks)
     {
-        const int64_t tokens_per_chunk = n_pos / n_chunks; // 13
+        const int64_t tokens_per_chunk = n_pos_padded / n_chunks;
         ggml_tensor * pos_tmp = ggml_view_2d(ctx0, model.position_embeddings,
             model.position_embeddings->ne[0], tokens_per_chunk,
             model.position_embeddings->nb[1], 0);
         ggml_tensor * tgt = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32,
-            model.position_embeddings->ne[0], n_pos);
+            model.position_embeddings->ne[0], n_pos_padded);
         inp = ggml_add(ctx0, inp, ggml_repeat(ctx0, pos_tmp, tgt));
     }
+
+    const int64_t valid_frames = img.audio_n_frames > 0 ? img.audio_n_frames : n_frames;
+    const int64_t n_pos = (valid_frames / 100) * 13 + (valid_frames % 100 + 7) / 8;
+    // The reference removes padded CNN tokens before self-attention.
+    inp = ggml_view_2d(ctx0, inp, inp->ne[0], n_pos, inp->nb[1], 0);
 
     ggml_tensor * cur = build_vit(inp, n_pos,
         NORM_TYPE_NORMAL, hparams.ffn_op,

@@ -2591,6 +2591,32 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples(mmproj_examples).set_env("LLAMA_ARG_MMPROJ"));
     add_opt(common_arg(
+        {"--aligner-model"}, "FILE",
+        "companion forced-aligner GGUF for /v1/audio/transcriptions/details",
+        [](common_params & params, const std::string & value) { params.aligner_model = value; }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_ALIGNER_MODEL"));
+    add_opt(common_arg(
+        {"--aligner-mmproj"}, "FILE",
+        "audio projector GGUF for the companion forced aligner",
+        [](common_params & params, const std::string & value) { params.aligner_mmproj = value; }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_ALIGNER_MMPROJ"));
+    add_opt(common_arg(
+        {"--aligner-ctx-size"}, "N",
+        "context size for the companion forced aligner (default: 8192)",
+        [](common_params & params, int value) {
+            if (value <= 0) { throw std::invalid_argument("aligner context size must be positive"); }
+            params.aligner_n_ctx = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_ALIGNER_CTX_SIZE"));
+    add_opt(common_arg(
+        {"--aligner-gpu-layers"}, "N",
+        "GPU layers for the companion forced aligner (-1: inherit, 0: CPU, default: -1)",
+        [](common_params & params, int value) {
+            if (value < -1) { throw std::invalid_argument("aligner GPU layers must be -1 or non-negative"); }
+            params.aligner_n_gpu_layers = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_ALIGNER_GPU_LAYERS"));
+    add_opt(common_arg(
         {"-mmu", "--mmproj-url"}, "URL",
         "URL to a multimodal projector file. see tools/mtmd/README.md",
         [](common_params & params, const std::string & value) {

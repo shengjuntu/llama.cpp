@@ -583,6 +583,12 @@ struct llama_model_qwen3 : public llama_model_base {
 };
 
 
+struct llama_model_qwen3aligner : public llama_model_qwen3 {
+    llama_model_qwen3aligner(const struct llama_model_params & params) : llama_model_qwen3(params) {}
+    void load_arch_hparams(llama_model_loader & ml) override;
+};
+
+
 struct llama_model_qwen3moe : public llama_model_base {
     llama_model_qwen3moe(const struct llama_model_params & params) : llama_model_base(params) {}
     void load_arch_hparams(llama_model_loader & ml) override;

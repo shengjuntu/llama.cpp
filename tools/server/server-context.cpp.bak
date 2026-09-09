@@ -1185,11 +1185,8 @@ private:
             if (!params_base.aligner_model.empty()) {
                 char asr[16] = {};
                 llama_model_meta_val_str(model_tgt, "qwen3vl.asr", asr, sizeof(asr));
-                if (std::string(asr) != "true") {
-                    SRV_WRN("%s\n", "ASR GGUF missing qwen3vl.asr flag; assuming Qwen3-ASR based on audio support");
-                }
-                if (!mtmd_support_audio(mctx)) {
-                    SRV_ERR("%s\n", "companion alignment requires an audio-capable ASR model");
+                if (std::string(asr) != "true" || !mtmd_support_audio(mctx)) {
+                    SRV_ERR("%s\n", "companion alignment requires a Qwen3-ASR GGUF converted with this version");
                     return false;
                 }
                 try {

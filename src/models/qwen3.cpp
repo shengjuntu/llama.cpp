@@ -19,14 +19,17 @@ void llama_model_qwen3::load_arch_tensors(llama_model_loader &) {
 
     // output
     output_norm = create_tensor(tn(LLM_TENSOR_OUTPUT_NORM, "weight"), {n_embd}, 0);
-    output      = create_tensor(tn(LLM_TENSOR_OUTPUT,      "weight"), {n_embd, n_vocab}, TENSOR_NOT_REQUIRED);
-    // if output is NULL, init from the input tok embed
-    if (output == NULL) {
-        output = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, TENSOR_DUPLICATED);
-    }
+    if (arch == LLM_ARCH_QWEN3ALIGNER) {
+        cls_out = create_tensor(tn(LLM_TENSOR_CLS_OUT, "weight"), {n_embd, hparams.n_embd_out()}, 0);
+    } else {
+        output = create_tensor(tn(LLM_TENSOR_OUTPUT, "weight"), {n_embd, n_vocab}, TENSOR_NOT_REQUIRED);
+        if (output == NULL) {
+            output = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, TENSOR_DUPLICATED);
+        }
 
-    // output rerank head
-    cls_out = create_tensor(tn(LLM_TENSOR_CLS_OUT, "weight"), {n_embd, hparams.n_cls_out}, TENSOR_NOT_REQUIRED);
+        // output rerank head
+        cls_out = create_tensor(tn(LLM_TENSOR_CLS_OUT, "weight"), {n_embd, hparams.n_cls_out}, TENSOR_NOT_REQUIRED);
+    }
 
     for (int i = 0; i < n_layer; ++i) {
         auto & layer = layers[i];
@@ -149,11 +152,15 @@ llama_model_qwen3::graph::graph(const llama_model & model, const llm_graph_param
     cb(cur, "result_norm", -1);
     res->t_embd = cur;
 
-    // lm_head
-    cur = build_lora_mm(model.output, cur, model.output_s);
-
-    cb(cur, "result_output", -1);
-    res->t_logits = cur;
+    if (model.arch == LLM_ARCH_QWEN3ALIGNER) {
+        cur = build_lora_mm(model.cls_out, cur);
+        cb(cur, "result_timestamp", -1);
+        res->t_embd = cur;
+    } else {
+        cur = build_lora_mm(model.output, cur, model.output_s);
+        cb(cur, "result_output", -1);
+        res->t_logits = cur;
+    }
 
     ggml_build_forward_expand(gf, cur);
 }

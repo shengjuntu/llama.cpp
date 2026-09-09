@@ -190,6 +190,21 @@ void llama_model_saver::add_kv_from_model() {
 
     // add_kv(LLM_KV_GENERAL_TYPE,                      ???);
     add_kv(LLM_KV_GENERAL_ARCHITECTURE,              model->arch_name());
+    if (model->arch == LLM_ARCH_QWEN3ALIGNER) {
+        const auto token = model->gguf_kv.find("qwen3aligner.timestamp_token_id");
+        const auto step = model->gguf_kv.find("qwen3aligner.timestamp_segment_time");
+        if (token != model->gguf_kv.end()) {
+            gguf_set_val_u32(gguf_ctx, token->first.c_str(), std::stoul(token->second));
+        }
+        if (step != model->gguf_kv.end()) {
+            gguf_set_val_f32(gguf_ctx, step->first.c_str(), std::stof(step->second));
+        }
+    } else if (model->arch == LLM_ARCH_QWEN3VL) {
+        const auto asr = model->gguf_kv.find("qwen3vl.asr");
+        if (asr != model->gguf_kv.end()) {
+            gguf_set_val_bool(gguf_ctx, asr->first.c_str(), asr->second == "true");
+        }
+    }
     // add_kv(LLM_KV_GENERAL_QUANTIZATION_VERSION,      ???);
     // add_kv(LLM_KV_GENERAL_ALIGNMENT,                 ???);
     // add_kv(LLM_KV_GENERAL_FILE_TYPE,                 ???);
@@ -451,8 +466,8 @@ void llama_model_saver::add_kv_from_model() {
 }
 
 void llama_model_saver::add_tensors_from_model() {
-    if (model->output != nullptr &&
-            std::string(model->output->name) != std::string(model->tok_embd->name)) {
+    if (model->tok_embd != nullptr && (model->output == nullptr ||
+            std::string(model->output->name) != std::string(model->tok_embd->name))) {
         add_tensor(model->tok_embd); // some models use the same tensor for tok_embd and output
     }
     add_tensor(model->type_embd);

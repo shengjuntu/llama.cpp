@@ -509,6 +509,7 @@ class MODEL_ARCH(IntEnum):
     QWEN2MOE         = auto()
     QWEN2VL          = auto()
     QWEN3            = auto()
+    QWEN3ALIGNER     = auto()
     QWEN3MOE         = auto()
     QWEN3NEXT        = auto()
     QWEN3VL          = auto()
@@ -1263,6 +1264,7 @@ MODEL_ARCH_NAMES: dict[MODEL_ARCH, str] = {
     MODEL_ARCH.QWEN2MOE:         "qwen2moe",
     MODEL_ARCH.QWEN2VL:          "qwen2vl",
     MODEL_ARCH.QWEN3:            "qwen3",
+    MODEL_ARCH.QWEN3ALIGNER:     "qwen3aligner",
     MODEL_ARCH.QWEN3MOE:         "qwen3moe",
     MODEL_ARCH.QWEN3NEXT:        "qwen3next",
     MODEL_ARCH.QWEN3VL:          "qwen3vl",
@@ -2726,6 +2728,23 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.OUTPUT_NORM,
         MODEL_TENSOR.OUTPUT,
         MODEL_TENSOR.ROPE_FREQS,
+        MODEL_TENSOR.ATTN_NORM,
+        MODEL_TENSOR.ATTN_QKV,
+        MODEL_TENSOR.ATTN_Q,
+        MODEL_TENSOR.ATTN_Q_NORM,
+        MODEL_TENSOR.ATTN_K,
+        MODEL_TENSOR.ATTN_K_NORM,
+        MODEL_TENSOR.ATTN_V,
+        MODEL_TENSOR.ATTN_OUT,
+        MODEL_TENSOR.FFN_NORM,
+        MODEL_TENSOR.FFN_GATE,
+        MODEL_TENSOR.FFN_DOWN,
+        MODEL_TENSOR.FFN_UP,
+    ],
+    MODEL_ARCH.QWEN3ALIGNER: [
+        MODEL_TENSOR.TOKEN_EMBD,
+        MODEL_TENSOR.OUTPUT_NORM,
+        MODEL_TENSOR.CLS_OUT,
         MODEL_TENSOR.ATTN_NORM,
         MODEL_TENSOR.ATTN_QKV,
         MODEL_TENSOR.ATTN_Q,

@@ -677,11 +677,19 @@ bool mtmd_audio_preprocessor_qwen3a::preprocess(const float *                 sa
         return false;
     }
 
+    // Whisper drops the final centered STFT frame before normalization.
+    const int64_t n_eff = std::min(mel_full.n_len, (int64_t) (n_samples / hparams.audio_hop_len));
+    if (n_eff == 0) {
+        return false;
+    }
+
     // Whisper-style normalization: clamp to (max - 8), scale to [-1, 1]
     {
         double mmax = -1e20;
-        for (float v : mel_full.data) {
-            if (v > mmax) mmax = v;
+        for (int64_t m = 0; m < mel_full.n_mel; ++m) {
+            for (int64_t t = 0; t < n_eff; ++t) {
+                mmax = std::max(mmax, (double) mel_full.data[m * mel_full.n_len + t]);
+            }
         }
         mmax -= 8.0;
         for (float & v : mel_full.data) {
@@ -689,15 +697,10 @@ bool mtmd_audio_preprocessor_qwen3a::preprocess(const float *                 sa
         }
     }
 
-    // The effective frame count: center-padded STFT gives ~n_samples/hop_length frames.
-    // We take min(mel_full.n_len, n_samples/hop + 1) to avoid including excess frames.
-    const int64_t n_eff = std::min(mel_full.n_len,
-                               (int64_t)(n_samples / hparams.audio_hop_len) + 1);
-
     // Split into inference windows matching n_window_infer=800 from model config.
     // Each window is padded to the next multiple of chunk_size for the cgraph.
     // The mtmd caller loops over output entries, so long audio is handled automatically.
-    const int chunk_size  = 100; // conv sub-chunk size (n_window * 2, n_window=50)
+    const int chunk_size  = std::min<int64_t>(100, n_eff);
     const int window_size = 800; // mel frames per forward pass (n_window_infer=800)
 
     for (int64_t off = 0; off < n_eff; off += window_size) {

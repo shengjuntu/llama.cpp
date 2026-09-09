@@ -136,6 +136,11 @@ int llama_server(common_params & params, int argc, char ** argv) {
                                && params.model.hf_repo.empty()
                                && params.model.docker_repo.empty();
 
+    if (is_router_server && (!params.aligner_model.empty() || !params.aligner_mmproj.empty())) {
+        SRV_ERR("%s\n", "companion alignment must be configured on an inference server, not the model router");
+        return 1;
+    }
+
     // skip device enumeration so the CUDA primary context stays uncreated
     common_params_print_info(params, !is_router_server);
 
@@ -216,6 +221,7 @@ int llama_server(common_params & params, int argc, char ** argv) {
         routes.post_control                = models_routes->proxy_post;
         routes.post_responses_oai          = models_routes->proxy_post;
         routes.post_transcriptions_oai     = models_routes->proxy_post;
+        routes.post_transcriptions_details = models_routes->proxy_post;
         routes.post_anthropic_messages     = models_routes->proxy_post;
         routes.post_anthropic_count_tokens = models_routes->proxy_post;
         routes.post_infill                 = models_routes->proxy_post;
@@ -260,6 +266,7 @@ int llama_server(common_params & params, int argc, char ** argv) {
     ctx_http.post("/responses",                ex_wrapper(routes.post_responses_oai));
     ctx_http.post("/v1/audio/transcriptions",  ex_wrapper(routes.post_transcriptions_oai));
     ctx_http.post("/audio/transcriptions",     ex_wrapper(routes.post_transcriptions_oai));
+    ctx_http.post("/v1/audio/transcriptions/details", ex_wrapper(routes.post_transcriptions_details));
     ctx_http.post("/v1/messages",              ex_wrapper(routes.post_anthropic_messages)); // anthropic messages API
     ctx_http.post("/infill",                   ex_wrapper(routes.post_infill));
     ctx_http.post("/embedding",                ex_wrapper(routes.post_embeddings)); // legacy

@@ -8,6 +8,7 @@
 #include "../src/llama-grammar.h"
 #include "../src/unicode.h"
 #include "../tools/server/server-chat.h"
+#include "../tools/server/server-audio.h"
 #include "chat-auto-parser.h"
 #include "chat.h"
 #include "common.h"
@@ -25,6 +26,26 @@
 #include <string>
 
 using json = common_json;
+
+static void test_audio_details() {
+    const auto transcript = server_audio_parse_transcript("language Chinese<asr_text>\u4f60\u597d, Qwen-ASR!", "");
+    GGML_ASSERT(transcript.language == "Chinese");
+    GGML_ASSERT(transcript.text == "\u4f60\u597d, Qwen-ASR!");
+    const std::vector<std::string> expected = {"\u4f60", "\u597d", "Qwen", "ASR"};
+    GGML_ASSERT(server_audio_words(transcript.text, transcript.language) == expected);
+    GGML_ASSERT(server_audio_parse_transcript("language None", "").text.empty());
+
+    const auto rate = server_audio_timestamps({"Concord"}, {7, 15}, 80, 44100);
+    GGML_ASSERT(rate.at(0).at("start_sample").get<int64_t>() == 24696);
+    GGML_ASSERT(rate.at(0).at("end_sample").get<int64_t>() == 52920);
+    GGML_ASSERT(rate.at(0).at("confidence").get<double>() == 0.0);
+
+    const auto repaired = server_audio_timestamps({"one", "two"}, {2, 1, 3, 4}, 80, 16000);
+    GGML_ASSERT(repaired.at(0).at("start_sample").get<int64_t>() == 2560);
+    GGML_ASSERT(repaired.at(0).at("end_sample").get<int64_t>() == 3840);
+    GGML_ASSERT(repaired.at(1).at("start_sample").get<int64_t>() == 3840);
+    GGML_ASSERT(repaired.at(1).at("end_sample").get<int64_t>() == 5120);
+}
 
 static std::ostream & operator<<(std::ostream & os, const common_chat_msg_diff & diff) {
     os << "{ content_delta: " << diff.content_delta << "; ";
@@ -7325,6 +7346,7 @@ int main(int argc, char ** argv) {
         test_msg_token_delimiters_split();
         test_tools_oaicompat_json_conversion();
         test_convert_responses_to_chatcmpl();
+        test_audio_details();
         test_developer_role_to_system_workaround();
         test_deepseek_v4_thinking_retention();
         test_deepseek_v4_tool_result_ordering();

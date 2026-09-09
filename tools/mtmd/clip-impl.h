@@ -655,6 +655,9 @@ struct mtmd_serialization; // forward declaration
 // For audio, only one channel is used, buf.size() == nx*ny
 //     nx will be n_frames and ny will be n_mel
 struct clip_image_f32 {
+    // Valid mel frames before padding. Restored audio is a placeholder, so this is not serialized.
+    int32_t audio_n_frames = 0;
+
     // marks the global view in e.g., DeepSeek-OCR Models
     bool add_viewsep = false;
     // appends a learned newline (or EOI) token after the image

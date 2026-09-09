@@ -143,6 +143,7 @@ struct server_routes {
     server_http_context::handler_t post_responses_oai;
     server_http_context::handler_t post_responses_tok_oai;
     server_http_context::handler_t post_transcriptions_oai;
+    server_http_context::handler_t post_transcriptions_details;
     server_http_context::handler_t post_anthropic_messages;
     server_http_context::handler_t post_anthropic_count_tokens;
     server_http_context::handler_t post_apply_template;
@@ -164,7 +165,8 @@ private:
             server_task_type type,
             const json & data,
             const std::vector<raw_buffer> & files,
-            task_response_type res_type);
+            task_response_type res_type,
+            const std::function<json(server_task_result_cmpl_final &)> & transform = {});
     std::unique_ptr<server_res_generator> handle_slots_save(const server_http_req & req, int id_slot);
     std::unique_ptr<server_res_generator> handle_slots_restore(const server_http_req & req, int id_slot);
     std::unique_ptr<server_res_generator> handle_slots_erase(const server_http_req &, int id_slot);
